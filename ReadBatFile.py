@@ -237,7 +237,7 @@ class BatFile:
         return output
 
 
-    def RunCompileTasks(self, testCodeDir, userDir,outputDir,userobject):
+    def RunCompileTasks(self, testCodeDir, userDir,outputDir,userobject, compiler, userfile):
         """
         Run all testobjects on different user directories. Each Userobject contains their
         own set of testobjects.
@@ -250,20 +250,24 @@ class BatFile:
                     continue
                 src = os.path.join(dirpath, f)
                 userpath = os.path.join(userDir, f)
+                if os.path.exists(userpath):
+                    userfile.write("\n-----Warning----\n\n  Existing file:{} found!".format(userpath))
                 shu.copy(src, userpath)
         for tb in newtbs:
             if tb.isExecutable:
                 continue
             tb.SetSourceDir(userDir)
-            for compiler in self.compileroptd:
-                newoutpath = join(outputDir,compiler)
-                if not os.path.exists(newoutpath):
-                    os.makedirs(newoutpath)
-                outfullpath = join(newoutpath, tb.outputexe)
-                outputtext = self.CallSubprocess(self.compileroptd[compiler], tb.inputlist, outfullpath,tb, userobject)
-                tb.outputresultstringd[compiler] = outputtext
-                print("\nCompiler: "+compiler+'\n')
-                print(outputtext.decode('utf-8'))
+            # newoutpath = join(outputDir,compiler)
+            newoutpath = outputDir
+            if not os.path.exists(newoutpath):
+                os.makedirs(newoutpath)
+            outfullpath = join(newoutpath, tb.outputexe)
+            outputtext = self.CallSubprocess(self.compileroptd[compiler], tb.inputlist, outfullpath,tb, userobject)
+            tb.outputresultstringd[compiler] = outputtext
+            userfile.write("\nCompiler: "+compiler+'\n')
+            userfile.write(outputtext.decode('utf-8'))
+            print("\nCompiler: "+compiler+'\n')
+            print(outputtext.decode('utf-8'))
     
     def ExecuteExe(self, exeFullPath, tb):    
         """
@@ -287,7 +291,7 @@ class BatFile:
         output = p.communicate((cmdstring +'\n').encode())[0]
         return output.decode('utf-8'), True
 
-    def RunExecTasks(self, outputDir, testCodeDir, userobject):
+    def RunExecTasks(self, outputDir, testCodeDir, userobject, compiler,userfile):
         """
         Executes exe files while checking if the results match the requirements
         of a TestObject.
@@ -297,37 +301,43 @@ class BatFile:
             if not tb.isExecutable:
                 continue
             
-            for compiler in self.compileroptd:
-                compileOutputPath = join(outputDir, compiler)
-                exefilefullpath = join(compileOutputPath, tb.outputexe)
+            # compileOutputPath = join(outputDir, compiler)
+            compileOutputPath = outputDir
+            exefilefullpath = join(compileOutputPath, tb.outputexe)
+            
+            if tb.isFailCompile:
+                if not os.path.exists(exefilefullpath):
+                    # ok
+                    pass
+                else:
+                    userobject.ReduceScoreForWrongCompile()
+                continue
+            elif tb.isMatchOutput:
+                namewoExt = tb.outputexe[:tb.outputexe.rfind('.exe')]
+                nameOutputText = namewoExt + '.txt'
+                nameOutputTextwithDir = join(compileOutputPath, nameOutputText)
+                out, ok = self.ExecuteExe(exefilefullpath,tb )
                 
-                if tb.isFailCompile:
-                    if not os.path.exists(exefilefullpath):
-                        # ok
-                        pass
-                    else:
-                        userobject.ReduceScoreForWrongCompile()
-                    continue
-                elif tb.isMatchOutput:
-                    namewoExt = tb.outputexe[:tb.outputexe.rfind('.exe')]
-                    nameOutputText = namewoExt + '.txt'
-                    nameOutputTextwithDir = join(compileOutputPath, nameOutputText)
-                    out, ok = self.ExecuteExe(exefilefullpath,tb )
+                if not ok:
+                    userobject.ReduceScoreForWrongCompile()
+                # with open(nameOutputTextwithDir, 'w', newline='') as txt:
+                userfile.write(out)
                     
-                    if not ok:
-                        userobject.ReduceScoreForWrongCompile()
-                    # with open(nameOutputTextwithDir, 'w', newline='') as txt:
-                    #     txt.write(out)
-                    
-    def ExecuteBatFile(self, testCodeDir, userDir,outputDir):
+    def ExecuteBatFile(self, testCodeDir, userDir,outputDir, outputfilepath = ''):
         """
         Interface for user to run
         """
         tbs = copy.deepcopy(self.TestObjects)
         userid = os.path.basename(userDir).split('_')[0]
         uo = UserObject(userid,userDir, tbs)
-        # self.RunCompileTasks(testCodeDir, userDir,outputDir,uo)
-        self.RunExecTasks(outputDir, testCodeDir,uo)
+        for compiler in self.compileroptd:
+            if outputfilepath == '':
+                outputfile = open(join(uo.mainDir, uo.userID+".txt"), 'w+')
+            else:
+                outputfile = open(outputfilepath, 'a+')
+            self.RunCompileTasks(testCodeDir, userDir,outputDir,uo, compiler,outputfile)
+            self.RunExecTasks(outputDir, testCodeDir,uo, compiler,outputfile)
+        outputfile.close()
         return uo
                 
     def __init__(self, buildfilepath):

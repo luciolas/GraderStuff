@@ -104,9 +104,8 @@ for dirpath, dirnames, filenames in os.walk(extractedDir):
 # print(users)
 for dirpath, dirnames, filenames in os.walk(extractedDir):
     for dirname in dirnames:
-        if dirname == 'Output':
-            usersoutputdir.append(os.path.normpath(os.path.join(dirpath,dirname)))
-            break
+        usersoutputdir.append(os.path.normpath(os.path.join(dirpath,dirname)))
+    break
 # print(usersoutputdir)
 for i in range(len(users)):
     userobjects.append(UserObject(username= users[i], outputdir=usersoutputdir[i]))

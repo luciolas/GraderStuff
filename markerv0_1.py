@@ -168,7 +168,7 @@ userobjects=[]
 
 for ed in extracteddirs:
         outputdir = join(ed, 'Output')
-        userobject = bfo.ExecuteBatFile(bfo.sourcedir, ed,outputdir)
+        userobject = bfo.ExecuteBatFile(bfo.sourcedir, ed,ed)
         
         userobjects.append(userobject)
         res = qc.CompareTextFilesInDirectory(ed)
