@@ -59,7 +59,7 @@ class TestObject:
     def __init__(self, listofcpps, outputname):
         self.inputlist = listofcpps
         self.outputexe = outputname
-        self.objectstring = ''
+        self.objectstring  = ''
         self.isExecutable = False
         self.isFailTest = False
         self.isFailCompile = False
@@ -143,12 +143,12 @@ class BatFile:
                     if (s[0] != '/') and (('.cpp' in s) or ('.obj' in s)):
                         cppfiles.append(s)
                 tb = TestObject(cppfiles, outputname)
-                # print(cppfiles)
+                
                 tb.isFailCompile = not checkerdict["$compile"]
                 tb.isMatchOutput = checkerdict["$mustmatch"]
                 
                 tb.objectstring = batfilecmd
-                # print(batfilecmd)
+                
                 self.TestObjects.append(tb)
             elif len(sp) > 0 and ('.exe' in sp[0]):
                 testexe = sp[0]
@@ -182,7 +182,9 @@ class BatFile:
                 if compilecmd in compileroptions:
                     self.compileroptd[compilecmd] = compileropt
                     self.compilervar = batfilevar
-                self.batfilevariablesd[batfilevar] = compileropt
+                    print('Compiler Option: {}'.format(compilecmd))
+                else:
+                    self.batfilevariablesd[batfilevar] = compileropt
 
     def CallSubprocess(self, compileOps, files, outpath,tb, userobject):
         """
@@ -194,7 +196,9 @@ class BatFile:
         arg = compileOps + outpath
         arg = arg.split()
         arg = arg + files
-        lrawcmdobject = tb.objectstring.split()
+        objectstring = self.ReplaceBatFileVars(tb.objectstring)
+        objectstring = objectstring.replace('%compiler%', compileOps)
+        lrawcmdobject = objectstring.split()
         for i in range(1, len(lrawcmdobject)):
             for f in files:
                 if lrawcmdobject[i] in f:
@@ -203,6 +207,7 @@ class BatFile:
         # print(lrawcmdobject)
         myenv = copy.deepcopy(os.environ)
         myenv["PATH"] = myenv["PATH"] +';'+r"C:\cygwin64\bin"+";"
+            
 
         # init cl environment
         clenv = join(vcvarspath, r"vcvarsall.bat")
@@ -212,23 +217,16 @@ class BatFile:
         additionalarg = os.path.normpath(additionalarg)
         
         res = ''
-        # for i in range(len(arg)):
-            # res = res+ ' ' + arg[i]
-            # print(res)
+        
         for i in range(len(lrawcmdobject)):
             res = res + ' ' + lrawcmdobject[i]
 
-        
-        p = Popen(cmdprog, stdin=PIPE, stdout=PIPE,stderr=subprocess.STDOUT)
+        workingdir = os.path.dirname(outpath)
+        p = Popen(cmdprog, stdin=PIPE, stdout=PIPE,stderr=subprocess.STDOUT, cwd=workingdir, env = myenv )
         ##init cl environment
         if enablecl:
             p.stdin.write((additionalarg + "\n").encode())
             p.stdin.flush()
-
-        ## change to user's working dir
-        changedircmd = ' '.join(['cd',os.path.dirname(outpath),'\n'])
-        p.stdin.write(changedircmd.encode())
-        p.stdin.flush()
 
         ## execute the task
         output= p.communicate((res + "\n").encode())[0]
@@ -268,28 +266,38 @@ class BatFile:
             userfile.write(outputtext.decode('utf-8'))
             print("\nCompiler: "+compiler+'\n')
             print(outputtext.decode('utf-8'))
+
+    def ReplaceBatFileVars(self, input):
+        for key, val in self.batfilevariablesd.items():
+            batfilevar = ''.join(['%', key, '%'])
+            input = input.replace(batfilevar, val)
+        return input
     
     def ExecuteExe(self, exeFullPath, tb):    
         """
         Executes exe files as dictated in the batfile.
         """ 
-        # if not os.path.exists(os.path.normpath(exeFullPath)):
-        #     return exeFullPath + ": ERROR: Cannot find executable!", False
+        
         print('---------------------Executing exe-----------------------\n\n')
         rawcmdstring = tb.objectstring.split()[1:]
-        # print(rawcmdstring)
+        
         lcmdstring = [exeFullPath] + rawcmdstring
         cmdstring = ' '.join(lcmdstring)
-        # print(lcmdstring)
+        p = None
         cmdprog = ['cmd', '/q']
-        p = Popen(cmdprog,  stdin =PIPE, stdout=PIPE,stderr=subprocess.STDOUT)
-        ## change to user's working dir
-        changedircmd = ' '.join(['cd',os.path.dirname(exeFullPath),'\n'])
-        p.stdin.write(changedircmd.encode())
-        p.stdin.flush()
+        try:
+            p = Popen([exeFullPath],  stdin =PIPE, stdout=PIPE,stderr=subprocess.STDOUT, cwd =os.path.dirname(exeFullPath) )
+        except Exception as e:
+            print(e)
+            return '', False
+        else:
+        # time.sleep(.1)
+        # p.stdout.flush()
+        # time.sleep(.1)
+        # output = p.communicate((cmdstring +'\n').encode())[0]
+            output = p.communicate()[0]
         
-        output = p.communicate((cmdstring +'\n').encode())[0]
-        return output.decode('utf-8'), True
+            return output.decode('utf-8'), True
 
     def RunExecTasks(self, outputDir, testCodeDir, userobject, compiler,userfile):
         """
@@ -299,6 +307,7 @@ class BatFile:
         """
         for tb in userobject.tbs:
             if not tb.isExecutable:
+                print('TB not executable')
                 continue
             
             # compileOutputPath = join(outputDir, compiler)
@@ -307,21 +316,25 @@ class BatFile:
             
             if tb.isFailCompile:
                 if not os.path.exists(exefilefullpath):
+                    print('TO is fail to compile OK')
                     # ok
                     pass
                 else:
+                    print('Reducing score...')
+
                     userobject.ReduceScoreForWrongCompile()
                 continue
             elif tb.isMatchOutput:
                 namewoExt = tb.outputexe[:tb.outputexe.rfind('.exe')]
                 nameOutputText = namewoExt + '.txt'
-                nameOutputTextwithDir = join(compileOutputPath, nameOutputText)
+                nameOutputTextwithDir = join(compileOutputPath, ''.join([nameOutputText,'_',compiler]))
+                print('Running exe file: {}'.format(exefilefullpath))
                 out, ok = self.ExecuteExe(exefilefullpath,tb )
                 
                 if not ok:
                     userobject.ReduceScoreForWrongCompile()
-                # with open(nameOutputTextwithDir, 'w', newline='') as txt:
-                userfile.write(out)
+                with open(nameOutputTextwithDir, 'w', newline='') as txt:
+                    txt.write(out)
                     
     def ExecuteBatFile(self, testCodeDir, userDir,outputDir, outputfilepath = ''):
         """
@@ -331,6 +344,7 @@ class BatFile:
         userid = os.path.basename(userDir).split('_')[0]
         uo = UserObject(userid,userDir, tbs)
         for compiler in self.compileroptd:
+            print('For option: {}'.format(compiler))
             if outputfilepath == '':
                 outputfile = open(join(uo.mainDir, uo.userID+".txt"), 'w+')
             else:

@@ -8,13 +8,13 @@ import csvReader as pxcsv
 import csv
 
 ## ASsignment number
-assnumber = '2'
+assnumber = '3'
 
 zipcounts = 0
 
-csvfilename = 'A2.csv'
+csvfilename = 'A3.csv'
 
-originalGradeCSV = 'Assignment2.xlsx'
+originalGradeCSV = 'Assignment3.xlsx'
 
 
 def RemoveExtension(src):
@@ -167,7 +167,7 @@ qc = ComparerObject(sourcedir)
 userobjects=[]
 
 for ed in extracteddirs:
-        outputdir = join(ed, 'Output')
+        # outputdir = join(ed, 'Output')
         userobject = bfo.ExecuteBatFile(bfo.sourcedir, ed,ed)
         
         userobjects.append(userobject)
