@@ -9,7 +9,7 @@ import time
 
 batfilename = 'build.bat'
 
-vcvarspath = r"C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build"
+vcvarspath = r"C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\VC\Auxiliary\Build"
     
 
 compileroptions = ['cl', 'g++']
@@ -241,6 +241,7 @@ class BatFile:
         own set of testobjects.
         """
         newtbs = userobject.tbs
+        
         #copy test code files to userDir
         for dirpath, _, filenames in os.walk(testCodeDir):
             for f in filenames:
@@ -264,8 +265,8 @@ class BatFile:
             tb.outputresultstringd[compiler] = outputtext
             userfile.write("\nCompiler: "+compiler+'\n')
             userfile.write(outputtext.decode('utf-8'))
-            print("\nCompiler: "+compiler+'\n')
-            print(outputtext.decode('utf-8'))
+            # print("\nCompiler: "+compiler+'\n')
+            # print(outputtext.decode('utf-8'))
 
     def ReplaceBatFileVars(self, input):
         for key, val in self.batfilevariablesd.items():
@@ -305,6 +306,7 @@ class BatFile:
         of a TestObject.
         We also calculate the score for each userobject
         """
+        exefiles = []
         for tb in userobject.tbs:
             if not tb.isExecutable:
                 print('TB not executable')
@@ -330,11 +332,12 @@ class BatFile:
                 nameOutputTextwithDir = join(compileOutputPath, ''.join([nameOutputText,'_',compiler]))
                 print('Running exe file: {}'.format(exefilefullpath))
                 out, ok = self.ExecuteExe(exefilefullpath,tb )
-                
+                exefiles.append(exefilefullpath)
                 if not ok:
                     userobject.ReduceScoreForWrongCompile()
                 with open(nameOutputTextwithDir, 'w', newline='') as txt:
                     txt.write(out)
+        return exefiles
                     
     def ExecuteBatFile(self, testCodeDir, userDir,outputDir, outputfilepath = ''):
         """
@@ -350,7 +353,10 @@ class BatFile:
             else:
                 outputfile = open(outputfilepath, 'a+')
             self.RunCompileTasks(testCodeDir, userDir,outputDir,uo, compiler,outputfile)
-            self.RunExecTasks(outputDir, testCodeDir,uo, compiler,outputfile)
+            exefiles = self.RunExecTasks(outputDir, testCodeDir,uo, compiler,outputfile)
+            for exe in exefiles:
+                if os.path.exists(exe):
+                    os.remove(exe)
         outputfile.close()
         return uo
                 
